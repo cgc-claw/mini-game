@@ -33,8 +33,5 @@ WORKDIR /app
 
 COPY --from=builder /app/game-linux ./game-linux
 COPY --from=builder /app/game-windows.exe ./game-windows.exe
-# Copy pre-built macOS binaries if available
-COPY --from=builder /app/game-darwin-amd64 ./game-darwin-amd64 2>/dev/null || true
-COPY --from=builder /app/game-darwin-arm64 ./game-darwin-arm64 2>/dev/null || true
 
 CMD ["./game-linux"]
