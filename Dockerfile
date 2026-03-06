@@ -21,17 +21,13 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o game-linux .
 # Build for Windows  
 RUN CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -o game-windows.exe .
 
-# Build for macOS (amd64) - requires osxcross with macOS SDK
-# This step is skipped in Docker unless osxcross is properly set up with SDK
-# For full macOS support, use the separate macOS job in the workflow
-
+# Final stage: Runtime only (Linux binaries need runtime libs)
 FROM alpine:latest
 
 RUN apk add --no-cache libstdc++ libc-dev mesa libx11 libxcursor libxrandr libxi
 
-WORKDIR /app
+# Copy binaries to root of image so they appear at dist/
+COPY --from=builder /app/game-linux /game-linux
+COPY --from=builder /app/game-windows.exe /game-windows.exe
 
-COPY --from=builder /app/game-linux ./game-linux
-COPY --from=builder /app/game-windows.exe ./game-windows.exe
-
-CMD ["./game-linux"]
+CMD ["/game-linux"]
