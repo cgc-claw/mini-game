@@ -30,6 +30,17 @@ type Game struct {
 	FrameCount  int
 }
 
+func (g *Game) Restart() {
+	g.GameOver = false
+	g.Score = 0
+	g.FrameCount = 0
+	g.Player = player.New(100, 400)
+	g.Level = level.New(ScreenWidth, ScreenHeight)
+	g.Level.Init(ScreenWidth, ScreenHeight)
+	g.Camera = camera.New(ScreenWidth, ScreenHeight)
+	g.Projectiles = make([]*player.Projectile, 0)
+}
+
 func NewGame() *Game {
 	g := &Game{
 		Player:     player.New(100, 400),
@@ -56,6 +67,11 @@ func (g *Game) Update() error {
 		ebiten.KeyRight: ebiten.IsKeyPressed(ebiten.KeyRight),
 		ebiten.KeyUp:    ebiten.IsKeyPressed(ebiten.KeyUp),
 		ebiten.KeySpace: ebiten.IsKeyPressed(ebiten.KeySpace),
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyR) && g.GameOver {
+		g.Restart()
+		return nil
 	}
 
 	g.Player.Update(keys, g.Level.GetPlatformAABB())
