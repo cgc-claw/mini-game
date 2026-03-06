@@ -78,6 +78,60 @@ jobs:
           path: game-windows-*
           retention-days: 5
 
+  # Extra step: Build macOS using osxcross Docker (cross-compile from Linux)
+  build-macos-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Generate go.sum
+        run: |
+          go get github.com/hajimehoshi/ebiten/v2@${{ env.EBITEN_VERSION }}
+          go get golang.org/x/image/font/basicfont@latest
+          go mod tidy
+
+      - name: Build macOS amd64 with osxcross
+        run: |
+          # Build macOS binaries using osxcross Docker image
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            crazy-max/osxcross:latest \
+            /bin/sh -c "GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o game-darwin-amd64 ."
+          
+          docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -w /build \
+            crazy-max/osxcross:latest \
+            /bin/sh -c "GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o game-darwin-arm64 ."
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event.inputs.version }}" != "" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/v(.+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-darwin-all-${{ steps.version.outputs.version }}
+          path: |
+            game-darwin-amd64-*
+            game-darwin-arm64-*
+          retention-days: 5
+
   build-macos:
     runs-on: macos-latest
     steps:
@@ -129,7 +183,7 @@ jobs:
           retention-days: 5
 
   release:
-    needs: [build-docker, build-macos]
+    needs: [build-docker, build-macos-docker, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -165,6 +219,8 @@ jobs:
           files: |
             artifacts/game-linux-x64*
             artifacts/game-windows-x64*
+            artifacts/game-darwin-all-*/game-darwin-amd64-*
+            artifacts/game-darwin-all-*/game-darwin-arm64-*
             artifacts/game-darwin-arm64*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

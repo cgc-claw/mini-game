@@ -15,9 +15,15 @@ COPY physics/ ./physics/
 
 RUN go mod download
 
+# Build for Linux
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o game-linux .
 
+# Build for Windows  
 RUN CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -o game-windows.exe .
+
+# Build for macOS (amd64) - requires osxcross with macOS SDK
+# This step is skipped in Docker unless osxcross is properly set up with SDK
+# For full macOS support, use the separate macOS job in the workflow
 
 FROM alpine:latest
 
@@ -27,5 +33,8 @@ WORKDIR /app
 
 COPY --from=builder /app/game-linux ./game-linux
 COPY --from=builder /app/game-windows.exe ./game-windows.exe
+# Copy pre-built macOS binaries if available
+COPY --from=builder /app/game-darwin-amd64 ./game-darwin-amd64 2>/dev/null || true
+COPY --from=builder /app/game-darwin-arm64 ./game-darwin-arm64 2>/dev/null || true
 
 CMD ["./game-linux"]
