@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"game/assets"
 	"game/camera"
 	"game/enemies"
 	"game/level"
@@ -28,6 +29,7 @@ type Game struct {
 	Score       int
 	GameOver    bool
 	FrameCount  int
+	Background  *ebiten.Image
 }
 
 func (g *Game) Restart() {
@@ -39,6 +41,11 @@ func (g *Game) Restart() {
 	g.Level.Init(ScreenWidth, ScreenHeight)
 	g.Camera = camera.New(ScreenWidth, ScreenHeight)
 	g.Projectiles = make([]*player.Projectile, 0)
+	
+	bgImg, err := ebiten.NewImageFromFile("assets/backgrounds/background.png")
+	if err == nil {
+		g.Background = bgImg
+	}
 }
 
 func NewGame() *Game {
@@ -52,6 +59,12 @@ func NewGame() *Game {
 		FrameCount: 0,
 	}
 	g.Level.Init(ScreenWidth, ScreenHeight)
+	
+	bgImg, err := ebiten.NewImageFromFile("assets/backgrounds/background.png")
+	if err == nil {
+		g.Background = bgImg
+	}
+	
 	return g
 }
 
@@ -183,7 +196,13 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{30, 30, 50, 255})
+	if g.Background != nil {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(-g.Camera.X/2, 0)
+		screen.DrawImage(g.Background, op)
+	} else {
+		screen.Fill(color.RGBA{30, 30, 50, 255})
+	}
 
 	g.Level.Draw(screen, g.Camera.X, g.Camera.Y)
 
@@ -215,6 +234,10 @@ var whiteColor = func(x, y int) color.Color { return color.White }
 func main() {
 	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
 	ebiten.SetWindowTitle("Iron Platformer")
+
+	assets.CreateSprites()
+	assets.CreateBackground()
+	assets.CreateSounds()
 
 	game := NewGame()
 
