@@ -164,10 +164,8 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            artifacts/game-linux-x64*
-            artifacts/game-windows-x64*
-            artifacts/game-darwin-all-*/game-darwin-amd64-*
-            artifacts/game-darwin-all-*/game-darwin-arm64-*
-            artifacts/game-darwin-arm64*
+            artifacts/game-linux-*/game-linux-*
+            artifacts/game-windows-*/game-windows-*.exe
+            artifacts/game-darwin-arm64-*/game-darwin-arm64-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
