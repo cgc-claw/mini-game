@@ -64,7 +64,6 @@ jobs:
 
       - name: Download Ebiten module
         run: |
-          go mod init game
           go get github.com/hajimehoshi/ebiten/v2@${{ env.EBITEN_VERSION }}
           go get golang.org/x/image/font/basicfont@latest
           go mod tidy
