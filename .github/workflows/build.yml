@@ -16,20 +16,8 @@ env:
   EBITEN_VERSION: 'v2.9.8'
 
 jobs:
-  build:
+  build-docker:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - os: linux
-            artifact_name: game-linux-x64
-            ext: ''
-          - os: windows
-            artifact_name: game-windows-x64
-            ext: '.exe'
-          - os: darwin
-            artifact_name: game-darwin-arm64
-            ext: ''
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,14 +27,69 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Install dependencies (Linux)
-        if: matrix.os == 'linux'
+      - name: Generate go.sum
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxinerama-dev
+          go get github.com/hajimehoshi/ebiten/v2@${{ env.EBITEN_VERSION }}
+          go get golang.org/x/image/font/basicfont@latest
+          go mod tidy
 
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'darwin'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Linux and Windows
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: mini-game:latest
+          outputs: type=local,dest=./dist
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event.inputs.version }}" != "" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/v(.+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Rename Linux artifact
+        run: |
+          mv dist/game-linux game-linux-${{ steps.version.outputs.version }}
+
+      - name: Rename Windows artifact
+        run: |
+          mv dist/game-windows.exe game-windows-${{ steps.version.outputs.version }}.exe
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-linux-${{ steps.version.outputs.version }}
+          path: game-linux-*
+          retention-days: 5
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-windows-${{ steps.version.outputs.version }}
+          path: game-windows-*
+          retention-days: 5
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install dependencies
         run: |
           brew install glfw
 
@@ -71,33 +114,22 @@ jobs:
       - name: Build
         env:
           CGO_ENABLED: 1
-          GOOS: ${{ matrix.os }}
-          GOARCH: amd64
         run: |
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            go build -o game.exe .
-          else
-            go build -o game .
-          fi
+          go build -o game-darwin .
 
       - name: Rename artifact
         run: |
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            mv game.exe ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}.exe
-          else
-            mv game ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}
-          fi
+          mv game-darwin game-darwin-arm64-${{ steps.version.outputs.version }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}
-          path: |
-            ${{ matrix.artifact_name }}*
+          name: game-darwin-arm64-${{ steps.version.outputs.version }}
+          path: game-darwin-arm64-*
           retention-days: 5
 
   release:
-    needs: build
+    needs: [build-docker, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
