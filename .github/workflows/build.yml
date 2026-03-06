@@ -1,0 +1,139 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 1.0.0)'
+        required: false
+        type: string
+
+env:
+  GO_VERSION: '1.26'
+  EBITEN_VERSION: 'v2.9.8'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            artifact_name: game-linux-x64
+            ext: ''
+          - os: windows
+            artifact_name: game-windows-x64
+            ext: '.exe'
+          - os: darwin
+            artifact_name: game-darwin-arm64
+            ext: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxinerama-dev
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'darwin'
+        run: |
+          brew install glfw
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event.inputs.version }}" != "" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/v(.+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download Ebiten module
+        run: |
+          go mod init game
+          go get github.com/hajimehoshi/ebiten/v2@${{ env.EBITEN_VERSION }}
+          go get golang.org/x/image/font/basicfont@latest
+          go mod tidy
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.os }}
+          GOARCH: amd64
+        run: |
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            go build -o game.exe .
+          else
+            go build -o game .
+          fi
+
+      - name: Rename artifact
+        run: |
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            mv game.exe ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}.exe
+          else
+            mv game ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-${{ steps.version.outputs.version }}
+          path: |
+            ${{ matrix.artifact_name }}*
+          retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: game-*
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v(.+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: List artifacts
+        run: |
+          find artifacts -type f -ls
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/game-linux-x64*
+            artifacts/game-windows-x64*
+            artifacts/game-darwin-arm64*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
