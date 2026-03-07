@@ -9,10 +9,23 @@ import (
 	"game/physics"
 	"game/player"
 	"image/color"
+	"io/ioutil"
+	"strconv"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"golang.org/x/image/font/basicfont"
+)
+
+type GameState int
+
+const (
+	StateMenu GameState = iota
+	StatePlaying
+	StateGameOver
 )
 
 const (
@@ -28,12 +41,29 @@ type Game struct {
 	Projectiles []*player.Projectile
 	Score       int
 	GameOver    bool
+	State       GameState
+	HighScore   int
 	FrameCount  int
 	Background  *ebiten.Image
 }
 
+func loadHighScore() int {
+	data, err := ioutil.ReadFile("highscore.txt")
+	if err == nil {
+		hs, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err == nil {
+			return hs
+		}
+	}
+	return 0
+}
+
+func saveHighScore(score int) {
+	_ = ioutil.WriteFile("highscore.txt", []byte(strconv.Itoa(score)), 0644)
+}
+
 func (g *Game) Restart() {
-	g.GameOver = false
+	g.State = StatePlaying
 	g.Score = 0
 	g.FrameCount = 0
 	g.Player = player.New(100, 400)
@@ -41,8 +71,7 @@ func (g *Game) Restart() {
 	g.Level.Init(ScreenWidth, ScreenHeight)
 	g.Camera = camera.New(ScreenWidth, ScreenHeight)
 	g.Projectiles = make([]*player.Projectile, 0)
-	
-	bgImg, err := ebiten.NewImageFromFile("assets/backgrounds/background.png")
+	bgImg, _, err := ebitenutil.NewImageFromFile("assets/backgrounds/background.png")
 	if err == nil {
 		g.Background = bgImg
 	}
@@ -50,41 +79,49 @@ func (g *Game) Restart() {
 
 func NewGame() *Game {
 	g := &Game{
-		Player:     player.New(100, 400),
-		Level:      level.New(ScreenWidth, ScreenHeight),
-		Camera:     camera.New(ScreenWidth, ScreenHeight),
+		Player:      player.New(100, 400),
+		Level:       level.New(ScreenWidth, ScreenHeight),
+		Camera:      camera.New(ScreenWidth, ScreenHeight),
 		Projectiles: make([]*player.Projectile, 0),
-		Score:      0,
-		GameOver:   false,
-		FrameCount: 0,
+		Score:       0,
+		State:       StateMenu,
+		HighScore:   loadHighScore(),
+		FrameCount:  0,
 	}
 	g.Level.Init(ScreenWidth, ScreenHeight)
-	
-	bgImg, err := ebiten.NewImageFromFile("assets/backgrounds/background.png")
+	bgImg, _, err := ebitenutil.NewImageFromFile("assets/backgrounds/background.png")
 	if err == nil {
 		g.Background = bgImg
 	}
-	
+
 	return g
 }
 
 func (g *Game) Update() error {
-	if g.GameOver {
+	if g.State == StateMenu {
+		if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyEnter) {
+			assets.PlaySound("restart")
+			g.Restart()
+		}
 		return nil
 	}
+
+	if g.State == StateGameOver {
+		if ebiten.IsKeyPressed(ebiten.KeyR) {
+			assets.PlaySound("restart")
+			g.Restart()
+		}
+		return nil
+	}
+
+	assets.PlayMusic("music")
 
 	g.FrameCount++
 
 	keys := map[ebiten.Key]bool{
 		ebiten.KeyLeft:  ebiten.IsKeyPressed(ebiten.KeyLeft),
 		ebiten.KeyRight: ebiten.IsKeyPressed(ebiten.KeyRight),
-		ebiten.KeyUp:    ebiten.IsKeyPressed(ebiten.KeyUp),
-		ebiten.KeySpace: ebiten.IsKeyPressed(ebiten.KeySpace),
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyR) && g.GameOver {
-		g.Restart()
-		return nil
+		ebiten.KeyUp:    inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeySpace),
 	}
 
 	g.Player.Update(keys, g.Level.GetPlatformAABB())
@@ -160,7 +197,7 @@ func (g *Game) Update() error {
 				g.Player.Invincible = 60
 			}
 		case *enemies.BigRobot:
-			proj := ent.Update(g.Player.X)
+			proj := ent.Update(g.Player.X, g.Level.GetPlatformPhysicsAABB())
 			if proj != nil {
 				g.Projectiles = append(g.Projectiles, proj)
 			}
@@ -185,7 +222,12 @@ func (g *Game) Update() error {
 	}
 
 	if g.Player.HP <= 0 {
-		g.GameOver = true
+		assets.PlaySound("death")
+		g.State = StateGameOver
+		if g.Score > g.HighScore {
+			g.HighScore = g.Score
+			saveHighScore(g.HighScore)
+		}
 	}
 
 	if g.FrameCount%600 == 0 {
@@ -215,11 +257,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	scoreText := fmt.Sprintf("HP: %d  Score: %d  Diff: %.1f", g.Player.HP, g.Score, g.Level.Difficulty)
 	text.Draw(screen, scoreText, basicfont.Face7x13, 10, 20, color.RGBA{255, 255, 255, 255})
 
-	if g.GameOver {
+	hsText := fmt.Sprintf("High Score: %d", g.HighScore)
+	text.Draw(screen, hsText, basicfont.Face7x13, ScreenWidth-150, 20, color.RGBA{255, 255, 0, 255})
+
+	if g.State == StateMenu {
+		msg := "IRON PLATFORMER"
+		text.Draw(screen, msg, basicfont.Face7x13, ScreenWidth/2-55, ScreenHeight/2-20, color.RGBA{255, 255, 255, 255})
+		msg2 := "Press SPACE or ENTER to Start"
+		text.Draw(screen, msg2, basicfont.Face7x13, ScreenWidth/2-100, ScreenHeight/2+20, color.RGBA{200, 200, 200, 255})
+		msg3 := fmt.Sprintf("High Score: %d", g.HighScore)
+		text.Draw(screen, msg3, basicfont.Face7x13, ScreenWidth/2-50, ScreenHeight/2+50, color.RGBA{255, 255, 0, 255})
+	} else if g.State == StateGameOver {
 		msg := "GAME OVER"
 		text.Draw(screen, msg, basicfont.Face7x13, ScreenWidth/2-40, ScreenHeight/2, color.RGBA{255, 50, 50, 255})
 		msg2 := fmt.Sprintf("Final Score: %d", g.Score)
 		text.Draw(screen, msg2, basicfont.Face7x13, ScreenWidth/2-50, ScreenHeight/2+20, color.RGBA{255, 255, 255, 255})
+		if g.Score >= g.HighScore && g.Score > 0 {
+			msgNew := "NEW HIGH SCORE!"
+			text.Draw(screen, msgNew, basicfont.Face7x13, ScreenWidth/2-55, ScreenHeight/2-30, color.RGBA{0, 255, 0, 255})
+		}
 		msg3 := "Press R to Restart"
 		text.Draw(screen, msg3, basicfont.Face7x13, ScreenWidth/2-55, ScreenHeight/2+40, color.RGBA{200, 200, 200, 255})
 	}
@@ -234,10 +290,12 @@ var whiteColor = func(x, y int) color.Color { return color.White }
 func main() {
 	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
 	ebiten.SetWindowTitle("Iron Platformer")
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	assets.CreateSprites()
 	assets.CreateBackground()
 	assets.CreateSounds()
+	assets.LoadAudio()
 
 	game := NewGame()
 

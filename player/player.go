@@ -1,6 +1,7 @@
 package player
 
 import (
+	"game/assets"
 	"game/physics"
 	"game/sprites"
 
@@ -8,15 +9,16 @@ import (
 )
 
 type Player struct {
-	X, Y       float64
-	Width      float64
-	Height     float64
-	VX, VY     float64
+	X, Y        float64
+	Width       float64
+	Height      float64
+	VX, VY      float64
 	FacingRight bool
-	Grounded   bool
-	Invincible int
-	HP         int
-	Sprite     *ebiten.Image
+	Grounded    bool
+	JumpCount   int
+	Invincible  int
+	HP          int
+	Sprite      *ebiten.Image
 }
 
 func New(x, y float64) *Player {
@@ -31,6 +33,7 @@ func New(x, y float64) *Player {
 		VY:          0,
 		FacingRight: true,
 		Grounded:    false,
+		JumpCount:   0,
 		Invincible:  0,
 		HP:          3,
 		Sprite:      sprites.PlayerSprite,
@@ -56,9 +59,11 @@ func (p *Player) Update(keys map[ebiten.Key]bool, platforms []*Platform) {
 		p.VX = 0
 	}
 
-	if jump && p.Grounded {
+	if jump && (p.Grounded || p.JumpCount < 2) {
+		assets.PlaySound("jump")
 		p.VY = physics.JumpForce
 		p.Grounded = false
+		p.JumpCount++
 	}
 
 	p.VY = physics.ApplyGravity(p.VY)
@@ -97,6 +102,7 @@ func (p *Player) handleVerticalCollisions(platforms []*Platform) {
 			if p.VY > 0 {
 				p.Y = plat.Y - p.Height
 				p.Grounded = true
+				p.JumpCount = 0
 				p.VY = 0
 			} else if p.VY < 0 {
 				p.Y = plat.Y + plat.Height
@@ -107,6 +113,7 @@ func (p *Player) handleVerticalCollisions(platforms []*Platform) {
 }
 
 func (p *Player) Shoot() *Projectile {
+	assets.PlaySound("shoot")
 	dir := 1.0
 	if !p.FacingRight {
 		dir = -1
@@ -185,13 +192,13 @@ func NewProjectile(x, y, dir float64, isPlayer bool) *Projectile {
 		sprite = sprites.BulletSprite
 	}
 	return &Projectile{
-		X:       x,
-		Y:       y,
-		Width:   w,
-		Height:  h,
-		VX:      dir * 8,
+		X:        x,
+		Y:        y,
+		Width:    w,
+		Height:   h,
+		VX:       dir * 8,
 		IsPlayer: isPlayer,
-		Sprite:  sprite,
+		Sprite:   sprite,
 	}
 }
 

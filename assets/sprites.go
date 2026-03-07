@@ -8,29 +8,7 @@ import (
 )
 
 func CreateSprites() error {
-	os.MkdirAll("assets/sprites", 0755)
-	
-	// Player sprite (32x32, red)
-	if err := createPlayerSprite(); err != nil {
-		return err
-	}
-	// Dino sprite (48x32, green)
-	if err := createDinoSprite(); err != nil {
-		return err
-	}
-	// BigRobot sprite (48x48, blue)
-	if err := createBigRobotSprite(); err != nil {
-		return err
-	}
-	// Boss sprite (64x64, purple)
-	if err := createBossSprite(); err != nil {
-		return err
-	}
-	// Platform texture (64x16, gray)
-	if err := createPlatformTexture(); err != nil {
-		return err
-	}
-	
+	// Procedural generation disabled; using pre-generated PNG files.
 	return nil
 }
 

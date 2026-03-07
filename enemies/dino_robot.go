@@ -8,12 +8,12 @@ import (
 )
 
 type DinoRobot struct {
-	X, Y       float64
-	Width      float64
-	Height     float64
-	VX, VY     float64
-	HP         int
-	Sprite     *ebiten.Image
+	X, Y   float64
+	Width  float64
+	Height float64
+	VX, VY float64
+	HP     int
+	Sprite *ebiten.Image
 }
 
 func NewDinoRobot(x, y float64) *DinoRobot {
@@ -38,19 +38,31 @@ func (e *DinoRobot) Update(playerX float64, platforms []*physics.AABB) {
 	e.VY = physics.ApplyGravity(e.VY)
 	e.Y += e.VY
 
+	onGround := false
+	var currentPlat *physics.AABB
 	for _, plat := range platforms {
 		if e.AABB().Intersects(plat) {
 			if e.VY > 0 {
 				e.Y = plat.Y - e.Height
-				e.VY = -8
-				if playerX > e.X {
-					e.VX = 2
-				} else {
-					e.VX = -2
-				}
+				e.VY = 0
+				onGround = true
+				currentPlat = plat
 			}
 		}
 	}
+
+	if onGround && currentPlat != nil {
+		if playerX > e.X {
+			e.VX = 1.5
+		} else {
+			e.VX = -1.5
+		}
+
+		if e.X+e.VX < currentPlat.X || e.X+e.Width+e.VX > currentPlat.X+currentPlat.Width {
+			e.VX = 0
+		}
+	}
+
 	e.X += e.VX
 }
 
