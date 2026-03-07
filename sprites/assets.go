@@ -54,12 +54,16 @@ func loadSprite(path string, targetW, targetH int) *ebiten.Image {
 }
 
 var (
-	PlayerSprite    *ebiten.Image
-	DinoRobotSprite *ebiten.Image
-	BigRobotSprite  *ebiten.Image
-	AlienBossSprite *ebiten.Image
-	PlatformSprite  *ebiten.Image
-	BulletSprite    *ebiten.Image
+	PlayerSprite     *ebiten.Image
+	DinoRobotSprite  *ebiten.Image
+	BigRobotSprite   *ebiten.Image
+	AlienBossSprite  *ebiten.Image
+	ItemHealthSprite *ebiten.Image
+	ItemAmmoSprite   *ebiten.Image
+	ItemLifeSprite   *ebiten.Image
+	PlatformSprite   *ebiten.Image
+	LavaSprite       *ebiten.Image
+	BulletSprite     *ebiten.Image
 )
 
 func init() {
@@ -67,6 +71,10 @@ func init() {
 	DinoRobotSprite = loadSprite("assets/sprites/dino.png", 48, 32)
 	BigRobotSprite = loadSprite("assets/sprites/big_robot.png", SpriteSize*2, SpriteSize*2)
 	AlienBossSprite = loadSprite("assets/sprites/boss.png", SpriteSize*3, SpriteSize*3)
+	ItemHealthSprite = loadSprite("assets/sprites/item_health.png", 16, 16)
+	ItemAmmoSprite = loadSprite("assets/sprites/item_ammo.png", 16, 16)
+	ItemLifeSprite = loadSprite("assets/sprites/item_life.png", 16, 16)
 	PlatformSprite = loadSprite("assets/sprites/platform.png", 64, 16)
+	LavaSprite = loadSprite("assets/sprites/lava.png", 32, 32)
 	BulletSprite = loadSprite("assets/sprites/bullet.png", 8, 8)
 }

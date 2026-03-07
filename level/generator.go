@@ -2,6 +2,7 @@ package level
 
 import (
 	"game/enemies"
+	"game/items"
 	"game/physics"
 	"game/player"
 	"math/rand"
@@ -12,7 +13,8 @@ import (
 type Generator struct {
 	Platforms     []*player.Platform
 	Enemies       []interface{}
-	LastPlatformX float64
+	Items         []*items.Item
+	LastPlatformX [3]float64 // 3 layers
 	ScreenWidth   int
 	ScreenHeight  int
 	Difficulty    float64
@@ -22,7 +24,8 @@ func New(w, h int) *Generator {
 	return &Generator{
 		Platforms:     make([]*player.Platform, 0),
 		Enemies:       make([]interface{}, 0),
-		LastPlatformX: 100,
+		Items:         make([]*items.Item, 0),
+		LastPlatformX: [3]float64{100, 400, 700},
 		ScreenWidth:   w,
 		ScreenHeight:  h,
 		Difficulty:    1.0,
@@ -31,60 +34,47 @@ func New(w, h int) *Generator {
 
 func (g *Generator) Init(screenW, screenH int) {
 	g.Platforms = append(g.Platforms, player.NewPlatform(0, float64(screenH-40), 400))
-	g.LastPlatformX = 400
+	g.LastPlatformX[0] = 400
+	g.LastPlatformX[1] = 600
+	g.LastPlatformX[2] = 800
 }
 
 func (g *Generator) Generate(cameraX float64) {
 	generateUntil := cameraX + float64(g.ScreenWidth) + 500
 
-	for g.LastPlatformX < generateUntil {
-		// Gap size based on randomness: small, medium, or large (requiring double jump)
-		gapType := rand.Float64()
-		var gap float64
-		if gapType < 0.6 {
-			gap = float64(rand.Intn(50) + 50) // small gap
-		} else if gapType < 0.9 {
-			gap = float64(rand.Intn(80) + 100) // medium gap
-		} else {
-			gap = float64(rand.Intn(60) + 180) // large gap (double jump)
-		}
-
-		width := float64(rand.Intn(200) + 120)
-
-		// Coherent height: relative to last platform
-		var lastY float64
-		if len(g.Platforms) > 0 {
-			lastY = g.Platforms[len(g.Platforms)-1].Y
-		} else {
-			lastY = float64(g.ScreenHeight - 100)
-		}
-
-		// Change height by -80 to +80
-		yDiff := float64(rand.Intn(160) - 80)
-		y := lastY + yDiff
-
-		// Keep within screen bounds
-		if y < 200 {
-			y = 200
-		} else if y > float64(g.ScreenHeight-100) {
-			y = float64(g.ScreenHeight - 100)
-		}
-
-		g.Platforms = append(g.Platforms, player.NewPlatform(g.LastPlatformX+gap, y, width))
-		g.LastPlatformX += gap + width
-
-		if rand.Float64() < 0.25*g.Difficulty {
-			enemyX := g.LastPlatformX - width/2
-			r := rand.Float64()
-			if r < 0.7 {
-				g.Enemies = append(g.Enemies, enemies.NewDinoRobot(enemyX, y-40))
-			} else {
-				g.Enemies = append(g.Enemies, enemies.NewBigRobot(enemyX, y-80))
+	for layer := 0; layer < 3; layer++ {
+		for g.LastPlatformX[layer] < generateUntil {
+			gap := float64(rand.Intn(80) + 60) // smaller gaps since there are many layers
+			if layer == 0 && rand.Float64() < 0.2 {
+				gap = float64(rand.Intn(100) + 150) // occasional large gap on bottom layer
 			}
-		}
 
-		if rand.Float64() < 0.01 {
-			g.Enemies = append(g.Enemies, enemies.NewAlienBoss(g.LastPlatformX-100, y-120))
+			width := float64(rand.Intn(200) + 120)
+
+			// Base heights for each layer: Bottom(~450), Middle(~300), Top(~150)
+			baseY := float64(g.ScreenHeight - 150 - (layer * 150))
+
+			// Fluctuation
+			yDiff := float64(rand.Intn(80) - 40)
+			y := baseY + yDiff
+
+			g.Platforms = append(g.Platforms, player.NewPlatform(g.LastPlatformX[layer]+gap, y, width))
+			g.LastPlatformX[layer] += gap + width
+
+			if rand.Float64() < 0.25*g.Difficulty {
+				enemyX := g.LastPlatformX[layer] - width/2
+				r := rand.Float64()
+				if r < 0.85 {
+					g.Enemies = append(g.Enemies, enemies.NewDinoRobot(enemyX, y-40))
+				} else {
+					g.Enemies = append(g.Enemies, enemies.NewBigRobot(enemyX, y-80))
+				}
+			}
+
+			// Bosses spawn much higher up normally or rarely anywhere
+			if rand.Float64() < 0.005 {
+				g.Enemies = append(g.Enemies, enemies.NewAlienBoss(g.LastPlatformX[layer]-100, y-120))
+			}
 		}
 	}
 
@@ -112,6 +102,14 @@ func (g *Generator) Generate(cameraX float64) {
 		}
 	}
 	g.Enemies = newEnemies
+
+	var newItems []*items.Item
+	for _, it := range g.Items {
+		if it.X+it.Width > cameraX-200 {
+			newItems = append(newItems, it)
+		}
+	}
+	g.Items = newItems
 }
 
 func (g *Generator) IncreaseDifficulty() {
@@ -137,6 +135,10 @@ func (g *Generator) Draw(screen *ebiten.Image, camX, camY float64) {
 		p.Draw(screen, camX, camY)
 	}
 
+	for _, it := range g.Items {
+		it.Draw(screen, camX, camY)
+	}
+
 	for _, e := range g.Enemies {
 		switch ent := e.(type) {
 		case *enemies.DinoRobot:
@@ -155,4 +157,16 @@ func (g *Generator) GetEnemies() []interface{} {
 
 func (g *Generator) RemoveEnemy(idx int) {
 	g.Enemies = append(g.Enemies[:idx], g.Enemies[idx+1:]...)
+}
+
+func (g *Generator) AddItem(x, y float64, itemType items.ItemType) {
+	g.Items = append(g.Items, items.NewItem(x, y, itemType))
+}
+
+func (g *Generator) GetItems() []*items.Item {
+	return g.Items
+}
+
+func (g *Generator) RemoveItem(idx int) {
+	g.Items = append(g.Items[:idx], g.Items[idx+1:]...)
 }

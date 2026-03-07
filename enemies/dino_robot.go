@@ -14,6 +14,7 @@ type DinoRobot struct {
 	Height    float64
 	VX, VY    float64
 	HP        int
+	Direction float64
 	AnimTimer int
 	Sprite    *ebiten.Image
 }
@@ -25,9 +26,10 @@ func NewDinoRobot(x, y float64) *DinoRobot {
 		Y:         y,
 		Width:     w,
 		Height:    h,
-		VX:        -2,
+		VX:        -1.5,
 		VY:        0,
 		HP:        1,
+		Direction: -1,
 		AnimTimer: 0,
 		Sprite:    sprites.DinoRobotSprite,
 	}
@@ -56,14 +58,27 @@ func (e *DinoRobot) Update(playerX float64, platforms []*physics.AABB) {
 	}
 
 	if onGround && currentPlat != nil {
-		if playerX > e.X {
-			e.VX = 1.5
-		} else {
-			e.VX = -1.5
+		distance := math.Abs(playerX - e.X)
+		shouldTrack := distance < 128 // Two blocks
+
+		if shouldTrack {
+			if playerX > e.X {
+				e.Direction = 1
+			} else {
+				e.Direction = -1
+			}
 		}
 
+		e.VX = e.Direction * 1.5
+
+		// Reverse direction at edge if patrolling or hit bounds
 		if e.X+e.VX < currentPlat.X || e.X+e.Width+e.VX > currentPlat.X+currentPlat.Width {
-			e.VX = 0
+			if !shouldTrack {
+				e.Direction *= -1
+				e.VX = e.Direction * 1.5
+			} else {
+				e.VX = 0 // Stop at edge if tracking
+			}
 		}
 	}
 

@@ -19,6 +19,8 @@ type Player struct {
 	JumpCount   int
 	Invincible  int
 	HP          int
+	Lives       int
+	Bullets     int
 	AnimTimer   int
 	Sprite      *ebiten.Image
 }
@@ -37,7 +39,9 @@ func New(x, y float64) *Player {
 		Grounded:    false,
 		JumpCount:   0,
 		Invincible:  0,
-		HP:          3,
+		HP:          50,
+		Lives:       1,
+		Bullets:     10,
 		AnimTimer:   0,
 		Sprite:      sprites.PlayerSprite,
 	}
@@ -118,6 +122,10 @@ func (p *Player) handleVerticalCollisions(platforms []*Platform) {
 }
 
 func (p *Player) Shoot() *Projectile {
+	if p.Bullets <= 0 {
+		return nil // No ammo
+	}
+	p.Bullets--
 	assets.PlaySound("shoot")
 	dir := 1.0
 	if !p.FacingRight {
