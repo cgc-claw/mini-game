@@ -10,6 +10,7 @@ import (
 	"game/player"
 	"image/color"
 	"io/ioutil"
+	"math"
 	"strconv"
 	"strings"
 
@@ -44,7 +45,8 @@ type Game struct {
 	State       GameState
 	HighScore   int
 	FrameCount  int
-	Background  *ebiten.Image
+	BgFixed     *ebiten.Image
+	BgMoving    *ebiten.Image
 }
 
 func loadHighScore() int {
@@ -71,9 +73,13 @@ func (g *Game) Restart() {
 	g.Level.Init(ScreenWidth, ScreenHeight)
 	g.Camera = camera.New(ScreenWidth, ScreenHeight)
 	g.Projectiles = make([]*player.Projectile, 0)
-	bgImg, _, err := ebitenutil.NewImageFromFile("assets/backgrounds/background.png")
-	if err == nil {
-		g.Background = bgImg
+	bgFixed, _, err1 := ebitenutil.NewImageFromFile("assets/backgrounds/bg_fixed.png")
+	if err1 == nil {
+		g.BgFixed = bgFixed
+	}
+	bgMoving, _, err2 := ebitenutil.NewImageFromFile("assets/backgrounds/bg_moving.png")
+	if err2 == nil {
+		g.BgMoving = bgMoving
 	}
 }
 
@@ -89,9 +95,13 @@ func NewGame() *Game {
 		FrameCount:  0,
 	}
 	g.Level.Init(ScreenWidth, ScreenHeight)
-	bgImg, _, err := ebitenutil.NewImageFromFile("assets/backgrounds/background.png")
-	if err == nil {
-		g.Background = bgImg
+	bgFixed, _, err1 := ebitenutil.NewImageFromFile("assets/backgrounds/bg_fixed.png")
+	if err1 == nil {
+		g.BgFixed = bgFixed
+	}
+	bgMoving, _, err2 := ebitenutil.NewImageFromFile("assets/backgrounds/bg_moving.png")
+	if err2 == nil {
+		g.BgMoving = bgMoving
 	}
 
 	return g
@@ -238,12 +248,44 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	if g.Background != nil {
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(-g.Camera.X/2, 0)
-		screen.DrawImage(g.Background, op)
+	if g.BgFixed != nil {
+		bgW := g.BgFixed.Bounds().Dx()
+		bgH := g.BgFixed.Bounds().Dy()
+		scale := float64(ScreenHeight) / float64(bgH)
+		scaledW := float64(bgW) * scale
+
+		offsetX := math.Mod(g.Camera.X*0.05, scaledW)
+		if offsetX < 0 {
+			offsetX += scaledW
+		}
+
+		for i := -1; i <= int(ScreenWidth/scaledW)+2; i++ {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Scale(scale, scale)
+			op.GeoM.Translate(-offsetX+float64(i)*scaledW, 0)
+			screen.DrawImage(g.BgFixed, op)
+		}
 	} else {
-		screen.Fill(color.RGBA{30, 30, 50, 255})
+		screen.Fill(color.RGBA{10, 10, 20, 255})
+	}
+
+	if g.BgMoving != nil {
+		bgW := g.BgMoving.Bounds().Dx()
+		bgH := g.BgMoving.Bounds().Dy()
+		scale := float64(ScreenHeight) / float64(bgH)
+		scaledW := float64(bgW) * scale
+
+		offsetX := math.Mod(g.Camera.X*0.2, scaledW)
+		if offsetX < 0 {
+			offsetX += scaledW
+		}
+
+		for i := -1; i <= int(ScreenWidth/scaledW)+2; i++ {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Scale(scale, scale)
+			op.GeoM.Translate(-offsetX+float64(i)*scaledW, 0)
+			screen.DrawImage(g.BgMoving, op)
+		}
 	}
 
 	g.Level.Draw(screen, g.Camera.X, g.Camera.Y)

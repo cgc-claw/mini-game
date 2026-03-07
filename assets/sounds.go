@@ -2,6 +2,7 @@ package assets
 
 import (
 	"encoding/binary"
+	"math"
 	"os"
 )
 
@@ -51,7 +52,31 @@ func createRestartSound() error {
 }
 
 func createBackgroundMusic() error {
-	return createTone("assets/sounds/music.wav", 600, 2000)
+	// Generate a simple arpeggio melody instead of a single tone
+	notes := []int{440, 554, 659, 880, 659, 554} // A Major arpeggio
+	sampleRate := 44100
+	noteDuration := 200 // ms per note
+	totalSamples := (sampleRate * noteDuration * len(notes)) / 1000
+
+	f, err := os.Create("assets/sounds/music.wav")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	writeWAVHeader(f, uint32(totalSamples))
+
+	for _, freq := range notes {
+		samplesForNote := (sampleRate * noteDuration) / 1000
+		for i := 0; i < samplesForNote; i++ {
+			// Super soft sine wave, low amplitude (4000 instead of 32767)
+			t := float64(i) / float64(sampleRate)
+			val := math.Sin(2.0 * math.Pi * float64(freq) * t)
+			sample := int16(4000.0 * val)
+			binary.Write(f, binary.LittleEndian, sample)
+		}
+	}
+	return nil
 }
 
 func createTone(filename string, frequency, duration int) error {
@@ -67,12 +92,20 @@ func createTone(filename string, frequency, duration int) error {
 	// Write WAV header
 	writeWAVHeader(f, uint32(totalSamples))
 
-	// Generate tone samples
+	// Generate tone samples using a softer sine wave, half amplitude (16000)
 	for i := 0; i < totalSamples; i++ {
-		sample := int16(32767 * (i % (sampleRate / frequency)) / (sampleRate / frequency))
-		if i%2 == 0 {
-			sample = -sample
+		t := float64(i) / float64(sampleRate)
+		val := math.Sin(2.0 * math.Pi * float64(frequency) * t)
+
+		// Optional: apply an envelope so it's not totally harsh on start/stop
+		envelope := 1.0
+		if i < 400 {
+			envelope = float64(i) / 400.0
+		} else if i > totalSamples-400 {
+			envelope = float64(totalSamples-i) / 400.0
 		}
+
+		sample := int16(16000.0 * val * envelope)
 		binary.Write(f, binary.LittleEndian, sample)
 	}
 

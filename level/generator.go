@@ -20,12 +20,12 @@ type Generator struct {
 
 func New(w, h int) *Generator {
 	return &Generator{
-		Platforms:    make([]*player.Platform, 0),
-		Enemies:      make([]interface{}, 0),
+		Platforms:     make([]*player.Platform, 0),
+		Enemies:       make([]interface{}, 0),
 		LastPlatformX: 100,
-		ScreenWidth:  w,
-		ScreenHeight: h,
-		Difficulty:   1.0,
+		ScreenWidth:   w,
+		ScreenHeight:  h,
+		Difficulty:    1.0,
 	}
 }
 
@@ -38,9 +38,37 @@ func (g *Generator) Generate(cameraX float64) {
 	generateUntil := cameraX + float64(g.ScreenWidth) + 500
 
 	for g.LastPlatformX < generateUntil {
-		gap := float64(rand.Intn(100) + 80)
-		width := float64(rand.Intn(150) + 100)
-		y := float64(rand.Intn(200) + g.ScreenHeight-300)
+		// Gap size based on randomness: small, medium, or large (requiring double jump)
+		gapType := rand.Float64()
+		var gap float64
+		if gapType < 0.6 {
+			gap = float64(rand.Intn(50) + 50) // small gap
+		} else if gapType < 0.9 {
+			gap = float64(rand.Intn(80) + 100) // medium gap
+		} else {
+			gap = float64(rand.Intn(60) + 180) // large gap (double jump)
+		}
+
+		width := float64(rand.Intn(200) + 120)
+
+		// Coherent height: relative to last platform
+		var lastY float64
+		if len(g.Platforms) > 0 {
+			lastY = g.Platforms[len(g.Platforms)-1].Y
+		} else {
+			lastY = float64(g.ScreenHeight - 100)
+		}
+
+		// Change height by -80 to +80
+		yDiff := float64(rand.Intn(160) - 80)
+		y := lastY + yDiff
+
+		// Keep within screen bounds
+		if y < 200 {
+			y = 200
+		} else if y > float64(g.ScreenHeight-100) {
+			y = float64(g.ScreenHeight - 100)
+		}
 
 		g.Platforms = append(g.Platforms, player.NewPlatform(g.LastPlatformX+gap, y, width))
 		g.LastPlatformX += gap + width

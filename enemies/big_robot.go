@@ -4,6 +4,7 @@ import (
 	"game/physics"
 	"game/player"
 	"game/sprites"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -14,6 +15,7 @@ type BigRobot struct {
 	Height     float64
 	VX, VY     float64
 	HP         int
+	AnimTimer  int
 	ShootTimer int
 	Sprite     *ebiten.Image
 }
@@ -28,6 +30,7 @@ func NewBigRobot(x, y float64) *BigRobot {
 		VX:         0,
 		VY:         0,
 		HP:         3,
+		AnimTimer:  0,
 		ShootTimer: 0,
 		Sprite:     sprites.BigRobotSprite,
 	}
@@ -40,6 +43,7 @@ func (e *BigRobot) AABB() *physics.AABB {
 func (e *BigRobot) Update(playerX float64, platforms []*physics.AABB) *player.Projectile {
 	e.VY = physics.ApplyGravity(e.VY)
 	e.Y += e.VY
+	e.AnimTimer++
 
 	onGround := false
 	var currentPlat *physics.AABB
@@ -83,7 +87,21 @@ func (e *BigRobot) Update(playerX float64, platforms []*physics.AABB) *player.Pr
 func (e *BigRobot) Draw(screen *ebiten.Image, camX, camY float64) {
 	sx := e.X - camX
 	sy := e.Y - camY
+
+	cx := e.Width / 2
+	cy := e.Height / 2
 	op := &ebiten.DrawImageOptions{}
+
+	op.GeoM.Translate(-cx, -cy)
+	wobble := math.Sin(float64(e.AnimTimer)*0.2) * 0.05
+	op.GeoM.Rotate(wobble)
+	op.GeoM.Translate(cx, cy)
+
+	if e.VX > 0 {
+		op.GeoM.Scale(-1, 1)
+		op.GeoM.Translate(e.Width, 0)
+	}
+
 	op.GeoM.Translate(sx, sy)
 	screen.DrawImage(e.Sprite, op)
 }

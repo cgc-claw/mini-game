@@ -8,3 +8,6 @@ bin/
 .env
 .idea/
 .vscode/
+game
+**/.DS_Store
+highscore.txt

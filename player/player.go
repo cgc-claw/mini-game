@@ -4,6 +4,7 @@ import (
 	"game/assets"
 	"game/physics"
 	"game/sprites"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -18,6 +19,7 @@ type Player struct {
 	JumpCount   int
 	Invincible  int
 	HP          int
+	AnimTimer   int
 	Sprite      *ebiten.Image
 }
 
@@ -36,6 +38,7 @@ func New(x, y float64) *Player {
 		JumpCount:   0,
 		Invincible:  0,
 		HP:          3,
+		AnimTimer:   0,
 		Sprite:      sprites.PlayerSprite,
 	}
 }
@@ -45,6 +48,8 @@ func (p *Player) AABB() *physics.AABB {
 }
 
 func (p *Player) Update(keys map[ebiten.Key]bool, platforms []*Platform) {
+	p.AnimTimer++
+
 	moveLeft := keys[ebiten.KeyLeft]
 	moveRight := keys[ebiten.KeyRight]
 	jump := keys[ebiten.KeyUp]
@@ -134,12 +139,34 @@ func (p *Player) Draw(screen *ebiten.Image, camX, camY float64) {
 	}
 
 	op := &ebiten.DrawImageOptions{}
+
+	// Animation Transforms
+	cx := p.Width / 2
+	cy := p.Height / 2
+	op.GeoM.Translate(-cx, -cy)
+
+	if p.HP <= 0 {
+		// Dead: fall over
+		op.GeoM.Rotate(math.Pi / 2)
+	} else if !p.Grounded {
+		// Jump: Stretch vertically, squish horizontally
+		op.GeoM.Scale(0.8, 1.2)
+	} else if p.VX != 0 {
+		// Run: waddle and bounce
+		wobble := math.Sin(float64(p.AnimTimer)*0.4) * 0.15
+		op.GeoM.Rotate(wobble)
+		bounce := math.Abs(math.Sin(float64(p.AnimTimer)*0.4)) * 3.0
+		cy -= bounce
+	}
+
+	op.GeoM.Translate(cx, cy)
+
 	if !p.FacingRight {
 		op.GeoM.Scale(-1, 1)
 		op.GeoM.Translate(p.Width, 0)
 	}
-	op.GeoM.Translate(sx, sy)
 
+	op.GeoM.Translate(sx, sy)
 	screen.DrawImage(p.Sprite, op)
 }
 
